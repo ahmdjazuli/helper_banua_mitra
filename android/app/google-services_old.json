@@ -1,0 +1,62 @@
+{
+  "project_info": {
+    "project_number": "1074602904262",
+    "project_id": "helper-banua",
+    "storage_bucket": "helper-banua.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1074602904262:android:8bf3a5be3c79db9394a5c7",
+        "android_client_info": {
+          "package_name": "com.bial.helperbanua"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1074602904262-0i6rtrq5dk1ar28gmudv1dsvvossd28c.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.bial.helperbanua",
+            "certificate_hash": "7e22b5b3ba80401f16c63a8d6e475a47efdade12"
+          }
+        },
+        {
+          "client_id": "1074602904262-945iegkh6inhk5p7k4e6erefnjoh4457.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.bial.helperbanua",
+            "certificate_hash": "e87d1107708cd8d7265d0465e9d4b7671af09be3"
+          }
+        },
+        {
+          "client_id": "1074602904262-gqk7kio786g0advvhp1ndftspo014lr2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCOXy92B7XtEg0e1QGrRcrP5jQbIGAVIVs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1074602904262-gqk7kio786g0advvhp1ndftspo014lr2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1074602904262-kg3gj8qmsrm4hb44qg5n0qeva756b6th.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.helperBanua"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

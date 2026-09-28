@@ -1,0 +1,44 @@
+name: helper_banua_mitra
+description: "Aplikasi Helper Banua Mitra"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  image_picker: ^1.2.3 
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.2.0
+
+  # FIREBASE & GOOGLE SIGN IN
+  firebase_core: ^3.0.0
+  firebase_auth: ^5.0.0
+  cloud_firestore: ^5.0.0
+  firebase_storage: ^12.4.10
+  google_sign_in: ^6.2.1
+  geolocator: ^13.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # Package untuk generate Logo / Icon Aplikasi
+  flutter_launcher_icons: "^0.13.1"
+
+# Konfigurasi Logo Aplikasi (Sejajar dengan kolom paling kiri)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/img/logo.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/img/
+    - assets/img/wallpaper.png
