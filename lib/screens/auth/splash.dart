@@ -36,10 +36,18 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Mengambil ukuran lebar layar HP
+    final double screenWidth = MediaQuery.of(context).size.width;
+
+    // Kalkulasi ukuran proporsional berdasarkan lebar layar
+    final double logoSize = screenWidth * 0.38; // 38% lebar layar
+    final double titleFontSize = screenWidth * 0.088; // Ukuran font HELPER BANUA
+    final double mitraFontSize = screenWidth * 0.105; // Ukuran font MITRA
+
     return Scaffold(
       body: Stack(
         children: [
-          // 1. BACKGROUND DUA WARNA DENGAN TRANSISI PUDAR HALUS DI GARIS TENGAH
+          // 1. BACKGROUND DUA WARNA DENGAN TRANSISI PUDAR HALUS
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -61,100 +69,110 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
           ),
 
-          // 2. KONTEN UTAMA DENGAN TAMPILAN PRESISI
+          // 2. KONTEN UTAMA DENGAN RESPONSIF PREVENTIF
           Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Logo Kotak
-                  SizedBox(
-                    width: 170,
-                    height: 170,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: Image.asset(
-                        'assets/img/logo.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Icon(
-                              Icons.build_circle,
-                              size: 60,
-                              color: Color(0xFFFFD600),
-                            ),
-                          );
-                        },
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+              child: MediaQuery.withNoTextScaling(
+                // Mencegah font membesar dari settingan font size HP
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Logo Kotak Proporsional
+                    SizedBox(
+                      width: logoSize,
+                      height: logoSize,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(logoSize * 0.14),
+                        child: Image.asset(
+                          'assets/img/logo.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Icon(
+                                Icons.build_circle,
+                                size: logoSize * 0.4,
+                                color: const Color(0xFFFFD600),
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ),
-                  ),
 
-                  const SizedBox(width: 16),
+                    SizedBox(width: screenWidth * 0.03),
 
-                  // Kolom Teks Terbagi 2 Sesuai Garis Tengah
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Teks HELPER BANUA
-                        Transform.translate(
-                          offset: const Offset(0, -5),
-                          child: const Text(
-                            'HELPER',
-                            style: TextStyle(
-                              fontSize: 40,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.black,
-                              letterSpacing: 0.5,
-                              height: 0.95,
+                    // Kolom Teks Terbagi 2 Sesuai Garis Tengah
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Teks HELPER BANUA (Disesuaikan Skalanya jika Layar Sempit)
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'HELPER',
+                                  style: TextStyle(
+                                    fontSize: titleFontSize,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.black,
+                                    letterSpacing: 0.5,
+                                    height: 0.95,
+                                  ),
+                                ),
+                                Text(
+                                  'BANUA',
+                                  style: TextStyle(
+                                    fontSize: titleFontSize,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.black,
+                                    letterSpacing: 0.5,
+                                    height: 1.00,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        Transform.translate(
-                          offset: const Offset(0, -5),
-                          child: const Text(
-                            'BANUA',
-                            style: TextStyle(
-                              fontSize: 40,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.black,
-                              letterSpacing: 0.5,
-                              height: 1.00,
+
+                          SizedBox(height: screenWidth * 0.02),
+
+                          // Badge / Teks MITRA (FittedBox Mencegah "MITR" + "A" Kebawah)
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: screenWidth * 0.025,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'MITRA',
+                                maxLines: 1,
+                                style: TextStyle(
+                                  fontSize: mitraFontSize,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.black,
+                                  letterSpacing: 1.5,
+                                  height: 1.0,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-
-                        // Jarak Pemisah antara Kuning & Hitam
-                        const SizedBox(height: 10),
-
-                        // Badge / Teks MITRA
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'MITRA',
-                            style: TextStyle(
-                              fontSize: 47,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.black,
-                              letterSpacing: 2.0,
-                              height: 1.0,
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

@@ -3,11 +3,15 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/auth/splash.dart';
 import 'screens/auth/login.dart'; 
-import 'screens/navigation/mitra_navigation.dart'; 
+import 'screens/navigation/navigasi_mitra.dart'; 
+import 'services/fcm_service.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  
+  await FCMService.initFCM();
+
   runApp(const MyApp());
 }
 
@@ -22,13 +26,11 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.amber,
       ),
-      // 2. Arahkan home ke SplashScreen
       home: const SplashScreen(), 
     );
   }
 }
 
-// Widget pembantu untuk mengecek status login setelah Splash Screen selesai
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 

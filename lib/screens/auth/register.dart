@@ -3,8 +3,8 @@ import 'package:android_intent_plus/android_intent.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:helper_banua/widgets/custom_input_field.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../widgets/custom_input_field.dart';
 import '../order/maps.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -255,7 +255,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       user = userCredential.user;
 
       if (user != null) {
-        // 2. CEK DUPLIKASI NOMOR TELEPON DI FIRESTORE
+        // Update display name di Auth
+        await user.updateDisplayName(_namaController.text.trim());
+
+        // 2. CEK DUPLIKASI NOMOR TELEPON DI FIRESTORE (Koleksi 'users' dan 'mitra')
         final phoneQuery = await FirebaseFirestore.instance
             .collection('users')
             .where('phone', isEqualTo: formattedPhone)
@@ -281,21 +284,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
           return;
         }
 
-        // 3. SIMPAN DATA PROFIL MITRA KE FIRESTORE
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({
-              'uid': user.uid,
-              'nama': _namaController.text.trim(),
-              'email': _emailController.text.trim(),
-              'phone': formattedPhone,
-              'almat_maps': _mapsController.text.trim(),
-              'roles': ['mitra'],
-              'isMitraActive': true,
-              'createdAt': FieldValue.serverTimestamp(),
-            })
-            .timeout(const Duration(seconds: 5));
+        // 3. SIMPAN DATA PROFIL UTAMA KE FIRESTORE KOLEKSI 'users' & 'mitra'
+        final batch = FirebaseFirestore.instance.batch();
+
+        final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        batch.set(userRef, {
+          'uid': user.uid,
+          'nama': _namaController.text.trim(),
+          'email': _emailController.text.trim(),
+          'phone': formattedPhone,
+          'almat_maps': _mapsController.text.trim(),
+          'roles': ['mitra'],
+          'isMitraActive': true,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        final mitraRef = FirebaseFirestore.instance.collection('mitra').doc(user.uid);
+        batch.set(mitraRef, {
+          'uid': user.uid,
+          'nama': _namaController.text.trim(),
+          'email': _emailController.text.trim(),
+          'phone': formattedPhone,
+          'lokasi': _mapsController.text.trim(),
+          'isSetupCompleted': false,  // Penanda setup layanan belum lengkap
+          'statusMitra': 'pending',   // Status verifikasi layanan awal
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        await batch.commit().timeout(const Duration(seconds: 8));
 
         // 4. KIRIM EMAIL VERIFIKASI DENGAN DEEP LINKING
         await user.sendEmailVerification(_actionCodeSettings);

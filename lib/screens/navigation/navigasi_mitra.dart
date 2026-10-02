@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/fcm_service.dart';
 import '../home/home_mitra.dart';
 import '../order/order_mitra.dart';
 import '../profile/akun.dart';
@@ -14,28 +15,37 @@ class MitraMainScreen extends StatefulWidget {
 class _MitraMainScreenState extends State<MitraMainScreen> {
   int _currentIndex = 0;
 
-  // Daftar halaman yang dipertahankan
-  final List<Widget> _pages = [
-    const HomeMitraScreen(),      // Indeks 0: Beranda
-    const LayarOrderanMitra(),    // Indeks 1: Orderan
-    const LayarBantuanMitra(), // Indeks 2: Placeholder Bantuan
-    const AkunScreen(),           // Indeks 3: Akun
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // Simpan Token FCM Mitra setelah navigasi utama dimuat
+    FCMService.saveFCMToken();
+  }
+
+  void _onNavigateToTab(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Daftar halaman yang diikutsertakan callback perpindahan tab
+    final List<Widget> pages = [
+      HomeMitraScreen(onTapProfile: () => _onNavigateToTab(3)), // Indeks 0: Beranda (tap profil menuju tab 3)
+      const LayarOrderanMitra(),                                // Indeks 1: Orderan
+      const LayarBantuanMitra(),                                // Indeks 2: Placeholder Bantuan
+      const AkunScreen(),                                       // Indeks 3: Akun
+    ];
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _pages,
+        children: pages,
       ),
       bottomNavigationBar: BottomNavMitra(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        onTap: _onNavigateToTab,
       ),
     );
   }
@@ -53,7 +63,6 @@ class BottomNavMitra extends StatelessWidget {
     this.badgeCount = 4,
   });
 
-  // Helper method untuk membuat container latar belakang ikon yang aktif
   Widget _buildNavIcon({
     required IconData iconData,
     required bool isActive,
@@ -107,7 +116,6 @@ class BottomNavMitra extends StatelessWidget {
         selectedFontSize: 11,
         unselectedFontSize: 11,
         items: [
-          // 0. Beranda
           BottomNavigationBarItem(
             icon: _buildNavIcon(
               iconData: currentIndex == 0 ? Icons.home : Icons.home_outlined,
@@ -115,8 +123,6 @@ class BottomNavMitra extends StatelessWidget {
             ),
             label: 'Beranda',
           ),
-
-          // 1. Orderan
           BottomNavigationBarItem(
             icon: _buildNavIcon(
               iconData: currentIndex == 1 ? Icons.assignment : Icons.assignment_outlined,
@@ -124,8 +130,6 @@ class BottomNavMitra extends StatelessWidget {
             ),
             label: 'Orderan',
           ),
-
-          // 2. Bantuan
           BottomNavigationBarItem(
             icon: _buildNavIcon(
               iconData: currentIndex == 2 ? Icons.headset_mic : Icons.headset_mic_outlined,
@@ -133,8 +137,6 @@ class BottomNavMitra extends StatelessWidget {
             ),
             label: 'Bantuan',
           ),
-
-          // 3. Akun
           BottomNavigationBarItem(
             icon: _buildNavIcon(
               iconData: currentIndex == 3 ? Icons.person : Icons.person_outline,

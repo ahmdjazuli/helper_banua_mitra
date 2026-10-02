@@ -1,12 +1,15 @@
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package0cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../auth/login.dart';
 import '../../widgets/background.dart';
 import '../../widgets/custom_input_field.dart';
+import '../../services/fcm_service.dart';
+import 'setup_layanan.dart';
 
 class AkunScreen extends StatefulWidget {
   const AkunScreen({super.key});
@@ -26,7 +29,7 @@ class _AkunScreenState extends State<AkunScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _mapsController = TextEditingController();
   
-  // Controller Password Lama & Baru (Disamakan dengan File 1)
+  // Controller Password Lama & Baru
   final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
 
@@ -52,14 +55,13 @@ class _AkunScreenState extends State<AkunScreen> {
     super.dispose();
   }
 
-  // Pengecekan apakah pengguna login menggunakan provider Google
   bool _isGoogleUser() {
     User? user = _auth.currentUser;
     if (user == null) return false;
     return user.providerData.any((info) => info.providerId == 'google.com');
   }
 
-  // 1. Memuat Data Pengguna dari Firebase Auth & Firestore
+  // 1. Memuat Data Pengguna
   Future<void> _loadUserData() async {
     User? currentUser = _auth.currentUser;
     if (currentUser != null) {
@@ -89,7 +91,7 @@ class _AkunScreenState extends State<AkunScreen> {
     }
   }
 
-  // 2. Simpan Perubahan Data Profil & Ubah Password Aman (Disamakan dengan File 1)
+  // 2. Simpan Perubahan Data Profil & Ubah Password Aman
   Future<void> _saveProfileChanges() async {
     User? user = _auth.currentUser;
     if (user == null) return;
@@ -123,12 +125,10 @@ class _AkunScreenState extends State<AkunScreen> {
         await user.updatePassword(newPass);
       }
 
-      // Update Nama di Firebase Auth
       if (_namaController.text.trim() != user.displayName) {
         await user.updateDisplayName(_namaController.text.trim());
       }
 
-      // Update Data Tambahan di Firestore
       await _firestore.collection('users').doc(user.uid).set({
         'nama': _namaController.text.trim(),
         'phone': _phoneController.text.trim(),
@@ -170,7 +170,181 @@ class _AkunScreenState extends State<AkunScreen> {
     }
   }
 
-  // 3. Unggah Foto ke Firebase Storage & Update Document Firestore
+  // 3. Fitur Hapus Akun Permanen dengan Input PIN Transaksi
+  Future<void> _confirmAndDeleteAccount() async {
+    final List<TextEditingController> pinControllers = List.generate(6, (_) => TextEditingController());
+    final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+              SizedBox(width: 8),
+              Text('Konfirmasi Hapus Akun', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Tindakan ini tidak dapat dibatalkan. Masukkan 6 digit PIN Transaksi Anda untuk memverifikasi penghapusan akun:',
+                style: TextStyle(fontSize: 12, color: Colors.black87),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(6, (index) {
+                  return SizedBox(
+                    width: 36,
+                    height: 46,
+                    child: TextField(
+                      controller: pinControllers[index],
+                      focusNode: focusNodes[index],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      obscureText: true,
+                      maxLength: 1,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        counterText: '',
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                        contentPadding: EdgeInsets.zero,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      onChanged: (val) {
+                        if (val.isNotEmpty && index < 5) {
+                          focusNodes[index + 1].requestFocus();
+                        } else if (val.isEmpty && index > 0) {
+                          focusNodes[index - 1].requestFocus();
+                        }
+                      },
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal', style: TextStyle(color: Colors.black)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () async {
+                final String inputPin = pinControllers.map((c) => c.text).join();
+                if (inputPin.length < 6) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Masukkan 6 digit PIN Transaksi dengan lengkap!')),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context);
+                _executeDeleteAccountWithPin(inputPin);
+              },
+              child: const Text('Hapus Akun', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _executeDeleteAccountWithPin(String inputPin) async {
+    User? user = _auth.currentUser;
+    if (user == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      DocumentSnapshot userDoc = await _firestore.collection('users').doc(user.uid).get();
+
+      if (!userDoc.exists || userDoc.data() == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(backgroundColor: Colors.red, content: Text('Data pengguna tidak ditemukan.')),
+          );
+        }
+        return;
+      }
+
+      Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+      String? savedPin = data['pin'];
+
+      if (savedPin == null || savedPin.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.orange,
+              content: Text('Anda belum mengatur PIN Transaksi! Silakan atur PIN terlebih dahulu.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (savedPin != inputPin) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(backgroundColor: Colors.red, content: Text('PIN Transaksi salah! Penghapusan akun dibatalkan.')),
+          );
+        }
+        return;
+      }
+
+      await FCMService.removeFCMTokenOnLogout();
+      await _firestore.collection('users').doc(user.uid).delete();
+      await user.delete();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.green,
+            content: Text('Akun Anda berhasil dihapus secara permanen.'),
+          ),
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login' && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.red,
+            content: Text('Demi keamanan, silakan Logout & Login ulang terlebih dahulu untuk menghapus akun.'),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.red, content: Text('Gagal menghapus akun: ${e.message}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.red, content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // 4. Unggah Foto Profil
   Future<void> _pickAndUploadImage(ImageSource source) async {
     User? user = _auth.currentUser;
     if (user == null) return;
@@ -189,8 +363,7 @@ class _AkunScreenState extends State<AkunScreen> {
 
       File file = File(pickedFile.path);
 
-      Reference storageRef =
-          _storage.ref().child('profile_pictures/${user.uid}.jpg');
+      Reference storageRef = _storage.ref().child('profile_pictures/${user.uid}.jpg');
       UploadTask uploadTask = storageRef.putFile(file);
       TaskSnapshot snapshot = await uploadTask;
 
@@ -222,89 +395,11 @@ class _AkunScreenState extends State<AkunScreen> {
     }
   }
 
-  // 4. FUNGSI MENGHAPUS SEMUA DATA ORDERS DI FIRESTORE (Khusus Mitra)
-  Future<void> _cleanUpAllOrders() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFFFFCB05)),
-      ),
-    );
+  // 5. Atur PIN Transaksi
+  void _showAturPinDialog() {
+    final List<TextEditingController> pinControllers = List.generate(6, (_) => TextEditingController());
+    final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
 
-    try {
-      QuerySnapshot snapshot = await _firestore.collection('orders').get();
-      WriteBatch batch = _firestore.batch();
-
-      for (DocumentSnapshot doc in snapshot.docs) {
-        batch.delete(doc.reference);
-      }
-
-      await batch.commit();
-
-      if (mounted) Navigator.pop(context);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Berhasil menghapus ${snapshot.docs.length} data orderan!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal menghapus data: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showConfirmCleanUpDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange),
-              SizedBox(width: 8),
-              Text('Reset Data Orders', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: const Text(
-            'Apakah Anda yakin ingin menghapus SELURUH data pesanan di Firebase?\n\n'
-            'Tindakan ini akan mengosongkan bursa orderan untuk keperluan pengujian.',
-            style: TextStyle(fontSize: 13),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Batal', style: TextStyle(color: Colors.black)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                _cleanUpAllOrders();
-              },
-              child: const Text('Hapus Semua', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // 5. Fitur Hapus Akun Permanen dengan Konfirmasi (Disamakan dengan File 1)
-  Future<void> _confirmAndDeleteAccount() async {
     showDialog(
       context: context,
       builder: (context) {
@@ -312,14 +407,56 @@ class _AkunScreenState extends State<AkunScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+              Icon(Icons.lock_outline, color: Color(0xFFFFCB05)),
               SizedBox(width: 8),
-              Text('Hapus Akun?', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('Atur PIN Transaksi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
-          content: const Text(
-            'Apakah Anda yakin ingin menghapus akun ini secara permanen? Data Anda yang tersimpan akan dihapus dan tidak dapat dikembalikan.',
-            style: TextStyle(fontSize: 13),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Buat 6 digit PIN untuk mengamankan transaksi dan keamanan akun Anda.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(6, (index) {
+                  return SizedBox(
+                    width: 36,
+                    height: 46,
+                    child: TextField(
+                      controller: pinControllers[index],
+                      focusNode: focusNodes[index],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      obscureText: true,
+                      maxLength: 1,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        counterText: '',
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                        contentPadding: EdgeInsets.zero,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      onChanged: (val) {
+                        if (val.isNotEmpty && index < 5) {
+                          focusNodes[index + 1].requestFocus();
+                        } else if (val.isEmpty && index > 0) {
+                          focusNodes[index - 1].requestFocus();
+                        }
+                      },
+                    ),
+                  );
+                }),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -327,63 +464,43 @@ class _AkunScreenState extends State<AkunScreen> {
               child: const Text('Batal', style: TextStyle(color: Colors.black)),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _executeDeleteAccount();
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFCB05),
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () async {
+                final String newPin = pinControllers.map((c) => c.text).join();
+                if (newPin.length < 6) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('PIN harus terdiri dari 6 digit angka!')),
+                  );
+                  return;
+                }
+
+                User? user = _auth.currentUser;
+                if (user != null) {
+                  await _firestore.collection('users').doc(user.uid).set({
+                    'pin': newPin,
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  }, SetOptions(merge: true));
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        backgroundColor: Colors.green,
+                        content: Text('PIN Transaksi berhasil disimpan!'),
+                      ),
+                    );
+                  }
+                }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Ya, Hapus Akun', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text('Simpan PIN', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         );
       },
     );
-  }
-
-  Future<void> _executeDeleteAccount() async {
-    User? user = _auth.currentUser;
-    if (user == null) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      // Hapus dokumen di Firestore
-      await _firestore.collection('users').doc(user.uid).delete();
-      // Hapus akun Authentication
-      await user.delete();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Akun Anda berhasil dihapus.')),
-        );
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'requires-recent-login' && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Colors.red,
-            content: Text('Demi keamanan, silakan Logout & Login ulang terlebih dahulu untuk menghapus akun.'),
-          ),
-        );
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: Colors.red, content: Text('Gagal menghapus akun: ${e.message}')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: Colors.red, content: Text('Error: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
   }
 
   void _showImageSourceDialog() {
@@ -522,7 +639,39 @@ class _AkunScreenState extends State<AkunScreen> {
 
               const SizedBox(height: 24),
 
-              // FIELD INFORMASI AKUN (Menggunakan CustomInputField seperti File 1)
+              // TOMBOL PENGATURAN LAYANAN SAYA
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SetupLayananMitraScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.build_circle_outlined, color: Colors.black, size: 20),
+                  label: const Text(
+                    'PENGATURAN LAYANAN SAYA',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFCB05),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // FIELD INFORMASI AKUN
               CustomInputField(
                 icon: Icons.person_outline,
                 label: 'Nama Lengkap',
@@ -600,9 +749,34 @@ class _AkunScreenState extends State<AkunScreen> {
                 labelColor: Colors.black87,
               ),
 
+              const SizedBox(height: 8),
+
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    _showAturPinDialog();
+                  },
+                  icon: const Icon(Icons.shield_outlined, color: Colors.black, size: 20),
+                  label: const Text(
+                    'ATUR / UBAH PIN TRANSAKSI',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.black, width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 12),
 
-              // TOMBOL SIMPAN PERUBAHAN (BorderRadius 12)
+              // TOMBOL SIMPAN PERUBAHAN
               SizedBox(
                 width: double.infinity,
                 height: 48,
@@ -627,46 +801,31 @@ class _AkunScreenState extends State<AkunScreen> {
 
               const SizedBox(height: 12),
 
-              // TOMBOL PEMBERSIH DATA ORDERS (TESTING TOOL KHUSUS MITRA - BorderRadius 12)
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton.icon(
-                  onPressed: _showConfirmCleanUpDialog,
-                  icon: const Icon(Icons.cleaning_services, color: Colors.orange, size: 18),
-                  label: const Text(
-                    'BERSIHKAN DATA ORDER (TESTING)',
-                    style: TextStyle(
-                      color: Colors.orange,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.orange.shade50,
-                    side: const BorderSide(color: Colors.orange, width: 1.5),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // TOMBOL LOGOUT (BorderRadius 12)
+              // TOMBOL LOGOUT
               SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton.icon(
-                  onPressed: () async {
-                    await _auth.signOut();
-                    if (context.mounted) {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
-                        (route) => false,
-                      );
-                    }
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          setState(() => _isLoading = true);
+                          try {
+                            await FCMService.removeFCMTokenOnLogout();
+                            await _auth.signOut();
+                            if (context.mounted) {
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                                (route) => false,
+                              );
+                            }
+                          } catch (e) {
+                            debugPrint("Error saat logout: $e");
+                          } finally {
+                            if (mounted) setState(() => _isLoading = false);
+                          }
+                        },
                   icon: const Icon(Icons.logout, color: Colors.white, size: 18),
                   label: const Text(
                     'KELUAR DARI AKUN',
@@ -686,7 +845,7 @@ class _AkunScreenState extends State<AkunScreen> {
 
               const SizedBox(height: 12),
 
-              // TOMBOL HAPUS AKUN (BorderRadius 12 & Dialog File 1)
+              // TOMBOL HAPUS AKUN (DENGAN VERIFIKASI PIN)
               SizedBox(
                 width: double.infinity,
                 height: 48,

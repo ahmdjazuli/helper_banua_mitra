@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import '../navigation/mitra_navigation.dart';
+import '../navigation/navigasi_mitra.dart';
 import 'register.dart';
 import '../../widgets/auth_dialogs.dart';
 import '../../widgets/custom_input_field.dart';
@@ -567,7 +567,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           );
                         },
                         child: const Text(
-                          'Register disini',
+                          'Daftar disini',
                           style: TextStyle(
                             color: Color(0xFFFFD600),
                             fontSize: 13,
