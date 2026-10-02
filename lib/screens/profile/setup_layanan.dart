@@ -132,57 +132,60 @@ class _SetupLayananMitraScreenState extends State<SetupLayananMitraScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Coba ambil dari koleksi mitra -> services
-      QuerySnapshot servicesSnap = await FirebaseFirestore.instance
+      // 1. Ambil langsung dokumen 'main_service' di subkoleksi mitra -> services
+      DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection('mitra')
           .doc(user.uid)
           .collection('services')
-          .orderBy('createdAt', descending: true)
-          .limit(1)
+          .doc('main_service')
           .get();
 
-      DocumentSnapshot? doc;
-      if (servicesSnap.docs.isNotEmpty) {
-        doc = servicesSnap.docs.first;
-      } else {
-        // Fallback: coba ambil langsung dari dokumen services
-        DocumentSnapshot singleDoc =
-            await FirebaseFirestore.instance.collection('services').doc(user.uid).get();
-        if (singleDoc.exists) {
-          doc = singleDoc;
+      // Fallback: Jika 'main_service' tidak ada, coba ambil dokumen pertama dari subkoleksi services
+      if (!doc.exists) {
+        QuerySnapshot servicesSnap = await FirebaseFirestore.instance
+            .collection('mitra')
+            .doc(user.uid)
+            .collection('services')
+            .limit(1)
+            .get();
+
+        if (servicesSnap.docs.isNotEmpty) {
+          doc = servicesSnap.docs.first;
         }
       }
 
-      if (doc != null && doc.exists && doc.data() != null) {
+      if (doc.exists && doc.data() != null) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
-        _serviceStatus = data['status']; // Mengambil status layanan
-        _deskripsiController.text = data['deskripsi'] ?? '';
-        _pengalamanController.text = data['pengalaman'] ?? '';
+        setState(() {
+          _serviceStatus = data['status']; // Mengambil status layanan
+          _deskripsiController.text = data['deskripsi'] ?? '';
+          _pengalamanController.text = data['pengalaman'] ?? '';
 
-        if (data['sertifikatUrls'] != null) {
-          _existingSertifikatUrls = List<String>.from(data['sertifikatUrls']);
-        }
+          if (data['sertifikatUrls'] != null) {
+            _existingSertifikatUrls = List<String>.from(data['sertifikatUrls']);
+          }
 
-        // Parsing layanan yang dipilih
-        if (data['layananDipilih'] != null && data['layananDipilih'] is List) {
-          List dynamicList = data['layananDipilih'];
-          for (var item in dynamicList) {
-            if (item is Map) {
-              String kat = item['kategori'] ?? '';
-              List nLayanan = item['namaLayanan'] ?? [];
-              if (kat.isNotEmpty) {
-                _selectedLayananPerKategori[kat] =
-                    Set<String>.from(nLayanan.map((e) => e.toString()));
+          // Parsing layanan yang dipilih
+          if (data['layananDipilih'] != null && data['layananDipilih'] is List) {
+            List dynamicList = data['layananDipilih'];
+            for (var item in dynamicList) {
+              if (item is Map) {
+                String kat = item['kategori'] ?? '';
+                List nLayanan = item['namaLayanan'] ?? [];
+                if (kat.isNotEmpty) {
+                  _selectedLayananPerKategori[kat] =
+                      Set<String>.from(nLayanan.map((e) => e.toString()));
+                }
               }
             }
           }
-        }
 
-        if (_selectedLayananPerKategori.isNotEmpty) {
-          _selectedKategori = _selectedLayananPerKategori.keys.first;
-          _isAgreed = true; // Set true jika sudah pernah mengisi
-        }
+          if (_selectedLayananPerKategori.isNotEmpty) {
+            _selectedKategori = _selectedLayananPerKategori.keys.first;
+            _isAgreed = true; // Set true jika sudah pernah mengisi
+          }
+        });
       }
     } catch (e) {
       debugPrint("Gagal memuat data layanan tersimpan: $e");
