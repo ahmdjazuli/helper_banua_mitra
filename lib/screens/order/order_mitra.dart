@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'ajukan_penawaran.dart';
-import '../home/home_mitra.dart'; // Akses onlineStatusNotifier & setMitraOnlineStatus
-import '../../widgets/background.dart'; // Import AppBackground
+import '../home/home_mitra.dart';
+import '../../widgets/background.dart';
 
 class LayarOrderanMitra extends StatefulWidget {
   final bool isEmbeddedInNav;
@@ -16,7 +17,6 @@ class LayarOrderanMitra extends StatefulWidget {
 }
 
 class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
-  // Filter default ke 'penawaran'
   String _kategoriFilter = 'penawaran';
 
   Widget _buildFilterTab(String label, String value, {int badgeCount = 0}) {
@@ -77,7 +77,6 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
       builder: (context, isOnline, child) {
         return Column(
           children: [
-            // HEADER "Bursa Orderan"
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -93,25 +92,20 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
                 ),
               ),
             ),
-
             const SizedBox(height: 12),
-
-            // FILTER TAB KAPSUL HORIZONTAL
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Real-time Badge Count dari Firestore untuk Penawaran
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('orders')
                         .where('status', isEqualTo: 'Proses Bidding')
                         .snapshots(),
                     builder: (context, snapshot) {
-                      int totalPenawaran =
-                          snapshot.hasData ? snapshot.data!.docs.length : 0;
+                      int totalPenawaran = snapshot.hasData ? snapshot.data!.docs.length : 0;
                       return _buildFilterTab(
                         'Penawaran Pekerjaan',
                         'penawaran',
@@ -126,10 +120,7 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
-
-            // DAFTAR KARTU ORDERAN
             Expanded(
               child: _buildContentBody(isOnline),
             ),
@@ -168,7 +159,6 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
     );
   }
 
-  // TAMPILAN KETIKA OFFLINE DI TAB PENAWARAN PEKERJAAN
   Widget _buildOfflineStateUI() {
     return Center(
       child: Padding(
@@ -238,7 +228,6 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
     );
   }
 
-  // LIST TAB PENAWARAN PEKERJAAN (REAL-TIME DARI FIREBASE)
   Widget _buildPenawaranList() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -279,7 +268,6 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
             final doc = docs[index];
             final data = doc.data() as Map<String, dynamic>;
 
-            // Mengambil expiredAt dari Firestore (Fallback ke createdAt + waktuPenawaran jika null)
             DateTime? targetTime;
             if (data['expiredAt'] != null && data['expiredAt'] is Timestamp) {
               targetTime = (data['expiredAt'] as Timestamp).toDate();
@@ -292,11 +280,11 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
 
             final Map<String, dynamic> itemData = {
               'id': doc.id,
-              // Sinkronisasi Keterangan Judul & Kategori
               'judul': data['jenisJasa'] ?? data['layanan_nama'] ?? data['judul'] ?? 'Jasa',
               'kategori': data['kategori'] ?? 'Kebersihan Harian',
-              'namaPelanggan': data['userName'] ?? data['user_name'] ?? data['namaPelanggan'] ?? 'Pelanggan',
-              'foto': data['userPhoto'] ?? data['user_photo'] ?? 'https://i.pravatar.cc/150?img=11',
+              'userId': data['userId'] ?? data['user_id'] ?? data['idPengguna'],
+              'namaPelanggan': data['userName'] ?? data['user_name'] ?? data['namaPelanggan'],
+              'foto': data['userPhoto'] ?? data['user_photo'],
               'targetTime': targetTime,
               ...data,
             };
@@ -312,7 +300,6 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
     );
   }
 
-  // LIST TAB RIWAYAT PEKERJAAN (REAL-TIME DARI FIREBASE)
   Widget _buildRiwayatList() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -353,7 +340,6 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
             final doc = docs[index];
             final item = doc.data() as Map<String, dynamic>;
 
-            // Format tanggal dari Timestamp Firebase
             String tanggalTeks = '';
             if (item['completed_at'] != null && item['completed_at'] is Timestamp) {
               DateTime completedDate = (item['completed_at'] as Timestamp).toDate();
@@ -365,7 +351,6 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
               tanggalTeks = item['tanggal'] ?? '';
             }
 
-            // Format nominal harga/deal_price
             String hargaTeks = 'Rp0';
             var rawHarga = item['deal_price'] ?? item['harga'] ?? 0;
 
@@ -381,142 +366,172 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
               hargaTeks = rawHarga.toString();
             }
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 14),
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Stack(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(14.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item['layanan_nama'] ?? item['judul'] ?? 'Jasa',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 15,
-                          ),
-                        ),
-                        Text(
-                          item['kategori'] ?? 'Kebersihan Harian',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
+            String userId = item['userId'] ?? item['user_id'] ?? '';
 
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
+            return FutureBuilder<DocumentSnapshot>(
+              future: userId.isNotEmpty
+                  ? FirebaseFirestore.instance.collection('users').doc(userId).get()
+                  : null,
+              builder: (context, userSnapshot) {
+                String namaUser = item['user_name'] ?? item['namaPelanggan'] ?? 'Pelanggan';
+                String? photoUser = item['user_photo'] ?? item['foto'];
+
+                if (userSnapshot.hasData && userSnapshot.data != null && userSnapshot.data!.exists) {
+                  Map<String, dynamic>? userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                  if (userData != null) {
+                    if (userData['nama'] != null && userData['nama'].toString().isNotEmpty) {
+                      namaUser = userData['nama'];
+                    }
+                    if (userData['photoUrl'] != null && userData['photoUrl'].toString().isNotEmpty) {
+                      photoUser = userData['photoUrl'];
+                    }
+                  }
+                }
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Stack(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(14.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundImage: NetworkImage(
-                                item['user_photo'] ?? item['foto'] ?? 'https://i.pravatar.cc/150?img=11',
+                            Text(
+                              item['layanan_nama'] ?? item['judul'] ?? 'Jasa',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
                               ),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item['user_name'] ?? item['namaPelanggan'] ?? 'Pelanggan',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  if (tanggalTeks.isNotEmpty)
-                                    Text(
-                                      tanggalTeks,
-                                      style: const TextStyle(
-                                        color: Colors.white54,
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                ],
+                            Text(
+                              item['kategori'] ?? 'Kebersihan Harian',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
                               ),
                             ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                            const SizedBox(height: 10),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                const Text(
-                                  'Harga',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: const Color(0xFFFFCB05),
+                                  backgroundImage: (photoUser != null && photoUser.isNotEmpty)
+                                      ? NetworkImage(photoUser)
+                                      : null,
+                                  child: (photoUser == null || photoUser.isEmpty)
+                                      ? Text(
+                                          namaUser.isNotEmpty ? namaUser[0].toUpperCase() : 'U',
+                                          style: const TextStyle(
+                                            color: Colors.black,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        namaUser,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      if (tanggalTeks.isNotEmpty)
+                                        Text(
+                                          tanggalTeks,
+                                          style: const TextStyle(
+                                            color: Colors.white54,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
-                                Text(
-                                  hargaTeks,
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    const Text(
+                                      'Harga',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    Text(
+                                      hargaTeks,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: () {},
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Color(0xFFFFCB05), width: 1.5),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 6),
+                                ),
+                                child: const Text(
+                                  'Lihat Ulasan',
+                                  style: TextStyle(
+                                    color: Color(0xFFFFCB05),
                                     fontWeight: FontWeight.w900,
                                     fontSize: 14,
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
-
-                        const SizedBox(height: 12),
-
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton(
-                            onPressed: () {},
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFFFFCB05), width: 1.5),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                            ),
-                            child: const Text(
-                              'Lihat Ulasan',
-                              style: TextStyle(
-                                color: Color(0xFFFFCB05),
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14,
-                              ),
+                      ),
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFCB05),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            item['status'] != null
+                                ? '${item['status'][0].toUpperCase()}${item['status'].substring(1)}'
+                                : 'Selesai',
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFCB05),
-                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
-                        item['status'] != null
-                            ? '${item['status'][0].toUpperCase()}${item['status'].substring(1)}'
-                            : 'Selesai',
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             );
           },
         );
@@ -525,9 +540,6 @@ class _LayarOrderanMitraState extends State<LayarOrderanMitra> {
   }
 }
 
-// -----------------------------------------------------------------------------
-// WIDGET KARTU PENAWARAN (TANPA STARTING BID)
-// -----------------------------------------------------------------------------
 class KartuPenawaranItem extends StatefulWidget {
   final Map<String, dynamic> item;
   final VoidCallback onExpired;
@@ -544,7 +556,6 @@ class KartuPenawaranItem extends StatefulWidget {
 
 class _KartuPenawaranItemState extends State<KartuPenawaranItem> {
   Timer? _timer;
-  bool _isUpdatingStatus = false;
 
   @override
   void initState() {
@@ -560,7 +571,6 @@ class _KartuPenawaranItemState extends State<KartuPenawaranItem> {
           Duration sisaDurasi = targetTime.difference(DateTime.now());
           if (sisaDurasi.isNegative || sisaDurasi.inSeconds <= 0) {
             _timer?.cancel();
-            _markAsExpired();
             widget.onExpired();
           } else {
             setState(() {});
@@ -568,24 +578,6 @@ class _KartuPenawaranItemState extends State<KartuPenawaranItem> {
         }
       }
     });
-  }
-
-  Future<void> _markAsExpired() async {
-    if (_isUpdatingStatus) return;
-    _isUpdatingStatus = true;
-    _timer?.cancel();
-
-    try {
-      String docId = widget.item['id'] ?? widget.item['orderId'];
-      if (docId != null && docId.isNotEmpty) {
-        await FirebaseFirestore.instance
-            .collection('orders')
-            .doc(docId)
-            .update({'status': 'Kadaluarsa'});
-      }
-    } catch (e) {
-      debugPrint("Gagal mengupdate status kadaluarsa dari mitra: $e");
-    }
   }
 
   @override
@@ -612,121 +604,195 @@ class _KartuPenawaranItemState extends State<KartuPenawaranItem> {
   @override
   Widget build(BuildContext context) {
     String sisaWaktuTeks = _getFormattedRemainingTime();
+    String userId = widget.item['userId'] ?? widget.item['user_id'] ?? '';
+    String orderId = widget.item['id'] ?? widget.item['orderId'] ?? widget.item['docId'] ?? '';
+    final User? currentUser = FirebaseAuth.instance.currentUser;
+    String customBidId = "${orderId}_${currentUser?.uid ?? ''}";
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFCB05),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return StreamBuilder<DocumentSnapshot>(
+      stream: (currentUser != null && orderId.isNotEmpty)
+          ? FirebaseFirestore.instance.collection('bids').doc(customBidId).snapshots()
+          : const Stream.empty(),
+      builder: (context, bidSnapshot) {
+        bool hasSubmittedBid = bidSnapshot.hasData && bidSnapshot.data != null && bidSnapshot.data!.exists;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFCB05),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
             children: [
-              // INFO PEKERJAAN & PELANGGAN
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.item['judul'] ?? 'Jasa',
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 15,
-                      ),
-                    ),
-                    Text(
-                      widget.item['kategori'] ?? 'Kategori',
-                      style: const TextStyle(
-                        color: Colors.black87,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundImage: NetworkImage(
-                            widget.item['foto'] ?? 'https://i.pravatar.cc/150?img=11',
+                        Row(
+                          children: [
+                            Text(
+                              widget.item['judul'] ?? 'Jasa',
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                              ),
+                            ),
+                            if (hasSubmittedBid) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade800,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'Penawaran Terkirim',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        Text(
+                          widget.item['kategori'] ?? 'Kategori',
+                          style: const TextStyle(
+                            color: Colors.black87,
+                            fontSize: 12,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          widget.item['namaPelanggan'] ?? 'Pelanggan',
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
+                        const SizedBox(height: 8),
+
+                        FutureBuilder<DocumentSnapshot>(
+                          future: userId.isNotEmpty
+                              ? FirebaseFirestore.instance.collection('users').doc(userId).get()
+                              : null,
+                          builder: (context, userSnapshot) {
+                            String namaPelanggan = widget.item['namaPelanggan'] ?? 'Pelanggan';
+                            String? fotoPelanggan = widget.item['foto'];
+
+                            if (userSnapshot.hasData &&
+                                userSnapshot.data != null &&
+                                userSnapshot.data!.exists) {
+                              Map<String, dynamic>? userData =
+                                  userSnapshot.data!.data() as Map<String, dynamic>?;
+                              if (userData != null) {
+                                if (userData['nama'] != null && userData['nama'].toString().isNotEmpty) {
+                                  namaPelanggan = userData['nama'];
+                                }
+                                if (userData['photoUrl'] != null && userData['photoUrl'].toString().isNotEmpty) {
+                                  fotoPelanggan = userData['photoUrl'];
+                                }
+                              }
+                            }
+
+                            return Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Colors.black,
+                                  backgroundImage: (fotoPelanggan != null && fotoPelanggan.isNotEmpty)
+                                      ? NetworkImage(fotoPelanggan)
+                                      : null,
+                                  child: (fotoPelanggan == null || fotoPelanggan.isEmpty)
+                                      ? Text(
+                                          namaPelanggan.isNotEmpty
+                                              ? namaPelanggan[0].toUpperCase()
+                                              : 'P',
+                                          style: const TextStyle(
+                                            color: Color(0xFFFFCB05),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    namaPelanggan,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
 
-              // TIMER WAKTU MUNDUR
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      sisaWaktuTeks,
-                      style: const TextStyle(
-                        color: Color(0xFFFFCB05),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          sisaWaktuTeks,
+                          style: const TextStyle(
+                            color: Color(0xFFFFCB05),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+
+              SizedBox(
+                width: 200,
+                height: 36,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AjukanPenawaranScreen(item: widget.item),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    hasSubmittedBid ? 'Lihat / Edit Penawaran' : 'Lihat Detail',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // TOMBOL LIHAT DETAIL
-          SizedBox(
-            width: 180,
-            height: 36,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AjukanPenawaranScreen(item: widget.item),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                elevation: 0,
-              ),
-              child: const Text(
-                'Lihat Detail',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

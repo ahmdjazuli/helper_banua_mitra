@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
+import '../screens/order/orderan_terdekat_detail.dart';
 
 class NearestOrdersSection extends StatelessWidget {
   final bool isOnline;
@@ -10,7 +11,6 @@ class NearestOrdersSection extends StatelessWidget {
     required this.isOnline,
   });
 
-  // Fungsi internal untuk cek izin & ambil lokasi GPS
   Future<Position?> _determinePosition() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return null;
@@ -28,7 +28,6 @@ class NearestOrdersSection extends StatelessWidget {
     );
   }
 
-  // Widget Tampilan saat orderan kosong
   Widget _buildEmptyOrdersState() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,7 +130,7 @@ class NearestOrdersSection extends StatelessWidget {
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('orders')
-              .where('status', isEqualTo: 'mencari_mitra')
+              .where('status', isEqualTo: 'Proses Bidding')
               .snapshots(),
           builder: (context, orderSnapshot) {
             if (orderSnapshot.connectionState == ConnectionState.waiting) {
@@ -147,15 +146,15 @@ class NearestOrdersSection extends StatelessWidget {
               return _buildEmptyOrdersState();
             }
 
-            // Filter & hitung jarak
             List<Map<String, dynamic>> processedOrders = [];
 
             for (var doc in orderSnapshot.data!.docs) {
               Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
               data['order_id'] = doc.id;
+              data['id'] = doc.id;
 
-              double userLat = (data['latitude'] ?? 0.0).toDouble();
-              double userLng = (data['longitude'] ?? 0.0).toDouble();
+              double userLat = (data['latitude'] ?? data['lat'] ?? 0.0).toDouble();
+              double userLng = (data['longitude'] ?? data['lng'] ?? 0.0).toDouble();
 
               if (mitraPos != null && userLat != 0.0 && userLng != 0.0) {
                 double distanceInMeters = Geolocator.distanceBetween(
@@ -172,13 +171,11 @@ class NearestOrdersSection extends StatelessWidget {
                 data['distance_display'] = '- km';
               }
 
-              // Filter radius maksimal 10.0 KM
               if (data['calculated_distance'] <= 10.0) {
                 processedOrders.add(data);
               }
             }
 
-            // Urutkan dari yang terdekat
             processedOrders.sort((a, b) =>
                 (a['calculated_distance'] as double)
                     .compareTo(b['calculated_distance'] as double));
@@ -221,6 +218,16 @@ class NearestOrdersSection extends StatelessWidget {
                     final order = processedOrders[index];
                     final isLastItem = index == processedOrders.length - 1;
 
+                    String namaJasa = order['jenisJasa'] ?? order['service_name'] ?? 'Layanan';
+                    String namaPelanggan = order['userName'] ?? order['customer_name'] ?? order['namaPelanggan'] ?? 'Pelanggan';
+                    String alamatPelanggan = order['alamat'] ?? order['address'] ?? 'Alamat tidak tersedia';
+                    dynamic hargaRaw = order['startingBid'] ?? order['hargaBidding'] ?? order['price'] ?? 0;
+
+                    String teksHarga = 'Rp $hargaRaw';
+                    if (hargaRaw is num) {
+                      teksHarga = 'Rp ${hargaRaw.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+                    }
+
                     return Container(
                       margin: EdgeInsets.only(bottom: isLastItem ? 0 : 12),
                       padding: const EdgeInsets.all(14),
@@ -249,7 +256,7 @@ class NearestOrdersSection extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  order['service_name'] ?? 'Layanan',
+                                  namaJasa,
                                   style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
@@ -275,7 +282,7 @@ class NearestOrdersSection extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            order['customer_name'] ?? 'Pelanggan',
+                            namaPelanggan,
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -284,7 +291,7 @@ class NearestOrdersSection extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            order['address'] ?? 'Alamat tidak tersedia',
+                            alamatPelanggan,
                             style: const TextStyle(fontSize: 12, color: Colors.black54),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -294,7 +301,7 @@ class NearestOrdersSection extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                'Rp ${order['price'] ?? 0}',
+                                teksHarga,
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w900,
@@ -303,7 +310,15 @@ class NearestOrdersSection extends StatelessWidget {
                               ),
                               ElevatedButton(
                                 onPressed: () {
-                                  // Navigasi ke detail orderan
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => DetailOrderanTerdekatScreen(
+                                        orderData: order,
+                                        mitraPosition: mitraPos,
+                                      ),
+                                    ),
+                                  );
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.black,

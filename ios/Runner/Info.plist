@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Helper Banua</string>
+	<string>Helper Banua Mitra</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,14 +15,10 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>helper_banua</string>
+	<string>helper_banua_mitra</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<key>NSCameraUsageDescription</key>
-	<string>Aplikasi memerlukan akses kamera untuk mengambil foto situasi pekerjaan.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Aplikasi memerlukan akses galeri untuk memilih foto situasi pekerjaan.</string>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
@@ -30,6 +26,21 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- IZIN LOKASI GOOGLE MAPS & GEOLOCATOR -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Helper Banua Mitra memerlukan lokasi Anda untuk mencari orderan terdekat.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Helper Banua Mitra memerlukan lokasi Anda untuk mencari orderan terdekat.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Helper Banua Mitra memerlukan lokasi Anda untuk mencari orderan terdekat.</string>
+
+	<!-- IZIN KAMERA & GALERI -->
+	<key>NSCameraUsageDescription</key>
+	<string>Aplikasi memerlukan akses kamera untuk mengambil foto situasi pekerjaan.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Aplikasi memerlukan akses galeri untuk memilih foto situasi pekerjaan.</string>
+
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

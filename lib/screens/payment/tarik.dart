@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import '../../widgets/background.dart';
 import '../../widgets/format_angka.dart';
+import '../../widgets/pin.dart';
 
 class TarikSaldoMitraScreen extends StatefulWidget {
   const TarikSaldoMitraScreen({super.key});
@@ -27,7 +27,6 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
   bool _isAccountVerified = false;
   String _accountHolderName = '';
 
-  // API Key Xendit Anda
   static const String _xenditSecretKey = 'xnd_development_20ELPVmtJGJv9cIG58zeVfWJv8WYJkGM6IQmpaYSV5FYnjapyDqqbGM78qUPdYL'; 
 
   final List<String> _bankList = [
@@ -52,24 +51,15 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
 
   String _getBankCode(String bankName) {
     switch (bankName) {
-      case 'Bank BCA':
-        return 'BCA';
-      case 'Bank Mandiri':
-        return 'MANDIRI';
-      case 'Bank BNI':
-        return 'BNI';
-      case 'Bank BRI':
-        return 'BRI';
-      case 'GoPay':
-        return 'GOPAY';
-      case 'OVO':
-        return 'OVO';
-      case 'DANA':
-        return 'DANA';
-      case 'ShopeePay':
-        return 'SHOPEEPAY';
-      default:
-        return 'BCA';
+      case 'Bank BCA': return 'BCA';
+      case 'Bank Mandiri': return 'MANDIRI';
+      case 'Bank BNI': return 'BNI';
+      case 'Bank BRI': return 'BRI';
+      case 'GoPay': return 'GOPAY';
+      case 'OVO': return 'OVO';
+      case 'DANA': return 'DANA';
+      case 'ShopeePay': return 'SHOPEEPAY';
+      default: return 'BCA';
     }
   }
 
@@ -110,6 +100,13 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
     });
   }
 
+  void _resetAmount() {
+    setState(() {
+      _amountController.clear();
+      _selectedNominal = null;
+    });
+  }
+
   Future<void> _verifyAccountName() async {
     String accountNumber = _accountNumberController.text.trim();
     if (accountNumber.isEmpty) {
@@ -123,9 +120,7 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
     }
 
     FocusScope.of(context).unfocus();
-    setState(() {
-      _isVerifyingAccount = true;
-    });
+    setState(() => _isVerifyingAccount = true);
 
     try {
       final String basicAuth = 'Basic ${base64Encode(utf8.encode('$_xenditSecretKey:'))}';
@@ -173,11 +168,7 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
         _accountHolderName = '';
       });
     } finally {
-      if (mounted) {
-        setState(() {
-          _isVerifyingAccount = false;
-        });
-      }
+      if (mounted) setState(() => _isVerifyingAccount = false);
     }
   }
 
@@ -216,359 +207,22 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
       return;
     }
 
-    _showPinDialog(currentBalance, amount);
-  }
-
-  void _showLupaPinDialog() {
-    final User? user = FirebaseAuth.instance.currentUser;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.lock_reset, color: Color(0xFFFFCB05)),
-              SizedBox(width: 8),
-              Text('Reset PIN Transaksi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Kami akan mengirimkan Kode OTP 6 digit ke email terdaftar Anda (${user?.email}) untuk memverifikasi permintaan reset PIN.',
-                style: const TextStyle(fontSize: 13, color: Colors.black87),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFCB05),
-                foregroundColor: Colors.black,
-              ),
-              onPressed: () async {
-                if (user == null || user.email == null) return;
-
-                final String generatedOtp = (100000 + Random().nextInt(900000)).toString();
-                
-                await FirebaseFirestore.instance.collection('mitra').doc(user.uid).set({
-                  'resetOtp': generatedOtp,
-                  'otpCreatedAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
-
-                if (!mounted) return;
-                Navigator.pop(context);
-                
-                _showSnackBar('Kode OTP telah dikirimkan ke ${user.email}');
-                _showOtpVerificationDialog(generatedOtp);
-              },
-              child: const Text('Kirim Kode OTP', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showOtpVerificationDialog(String expectedOtp) {
-    final List<TextEditingController> otpControllers = List.generate(6, (_) => TextEditingController());
-    final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
-
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Input Kode OTP Email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Masukkan 6 digit kode OTP yang telah dikirimkan ke email Anda.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 36,
-                    height: 46,
-                    child: TextField(
-                      controller: otpControllers[index],
-                      focusNode: focusNodes[index],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      maxLength: 1,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        counterText: '',
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onChanged: (val) {
-                        if (val.isNotEmpty && index < 5) {
-                          focusNodes[index + 1].requestFocus();
-                        } else if (val.isEmpty && index > 0) {
-                          focusNodes[index - 1].requestFocus();
-                        }
-                      },
-                    ),
-                  );
-                }),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFCB05),
-                foregroundColor: Colors.black,
-              ),
-              onPressed: () {
-                final String enteredOtp = otpControllers.map((c) => c.text).join();
-                if (enteredOtp.length < 6) {
-                  _showSnackBar('Masukkan 6 digit kode OTP!', isError: true);
-                  return;
-                }
-
-                if (enteredOtp != expectedOtp) {
-                  _showSnackBar('Kode OTP salah / tidak sesuai!', isError: true);
-                  return;
-                }
-
-                Navigator.pop(context);
-                _showFormPinBaruDialog();
-              },
-              child: const Text('Verifikasi OTP', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showFormPinBaruDialog() {
-    final List<TextEditingController> pinControllers = List.generate(6, (_) => TextEditingController());
-    final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Buat PIN Baru', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Verifikasi OTP berhasil. Masukkan 6 digit PIN transaksi baru Anda.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 36,
-                    height: 46,
-                    child: TextField(
-                      controller: pinControllers[index],
-                      focusNode: focusNodes[index],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      obscureText: true,
-                      maxLength: 1,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        counterText: '',
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onChanged: (val) {
-                        if (val.isNotEmpty && index < 5) {
-                          focusNodes[index + 1].requestFocus();
-                        } else if (val.isEmpty && index > 0) {
-                          focusNodes[index - 1].requestFocus();
-                        }
-                      },
-                    ),
-                  );
-                }),
-              ),
-            ],
-          ),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFCB05),
-                foregroundColor: Colors.black,
-              ),
-              onPressed: () async {
-                final String newPin = pinControllers.map((c) => c.text).join();
-                if (newPin.length < 6) {
-                  _showSnackBar('PIN baru harus 6 digit angka!', isError: true);
-                  return;
-                }
-
-                final User? user = FirebaseAuth.instance.currentUser;
-                if (user != null) {
-                  await FirebaseFirestore.instance.collection('mitra').doc(user.uid).set({
-                    'pin': newPin,
-                    'resetOtp': FieldValue.delete(),
-                    'updatedAt': FieldValue.serverTimestamp(),
-                  }, SetOptions(merge: true));
-
-                  if (mounted) {
-                    Navigator.pop(context);
-                    _showSnackBar('PIN Transaksi berhasil diperbarui! Silakan ulangi penarikan.');
-                  }
-                }
-              },
-              child: const Text('Simpan PIN Baru', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showPinDialog(num currentBalance, num amount) {
-    final List<TextEditingController> pinControllers = List.generate(6, (_) => TextEditingController());
-    final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            'Konfirmasi PIN',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Masukkan 6 digit PIN keamanan transaksi Anda.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 36,
-                    height: 46,
-                    child: TextField(
-                      controller: pinControllers[index],
-                      focusNode: focusNodes[index],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      obscureText: true,
-                      maxLength: 1,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        counterText: '',
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                        contentPadding: EdgeInsets.zero,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Color(0xFFFFCB05), width: 2),
-                        ),
-                      ),
-                      onChanged: (value) {
-                        if (value.isNotEmpty && index < 5) {
-                          focusNodes[index + 1].requestFocus();
-                        } else if (value.isEmpty && index > 0) {
-                          focusNodes[index - 1].requestFocus();
-                        }
-                      },
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _showLupaPinDialog();
-                  },
-                  child: const Text(
-                    'Lupa PIN?',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('BATAL', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () {
-                final String enteredPin = pinControllers.map((c) => c.text).join();
-                if (enteredPin.length < 6) {
-                  _showSnackBar('Harap masukkan 6 digit PIN secara lengkap', isError: true);
-                  return;
-                }
-
-                Navigator.pop(context);
-                _verifyAndProcessTarik(enteredPin, currentBalance, amount);
-              },
-              child: const Text('KONFIRMASI', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
+      builder: (context) => PinVerificationDialog(
+        onPinConfirmed: (enteredPin) {
+          _verifyAndProcessTarik(enteredPin, currentBalance, amount);
+        },
+        onLupaPin: () {
+          PinResetFlowDialog.startResetFlow(context, _showSnackBar);
+        },
+      ),
     );
   }
 
   Future<void> _verifyAndProcessTarik(String enteredPin, num currentBalance, num amount) async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final User? user = FirebaseAuth.instance.currentUser;
@@ -591,9 +245,7 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
               action: SnackBarAction(
                 label: 'ATUR PIN',
                 textColor: const Color(0xFFFFCB05),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
+                onPressed: () => Navigator.pop(context),
               ),
             ),
           );
@@ -631,13 +283,7 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final String xenditStatus = responseData['status'] ?? 'PENDING';
-        
-        String finalStatus = 'SUCCESS';
-        if (xenditStatus == 'PENDING') {
-          finalStatus = 'PENDING';
-        } else if (xenditStatus == 'FAILED') {
-          finalStatus = 'FAILED';
-        }
+        String finalStatus = xenditStatus == 'FAILED' ? 'FAILED' : (xenditStatus == 'PENDING' ? 'PENDING' : 'SUCCESS');
 
         await FirebaseFirestore.instance.collection('transactions').doc(transactionId).set({
           'transactionId': transactionId,
@@ -669,11 +315,7 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
     } catch (e) {
       _showSnackBar('Terjadi kesalahan: $e', isError: true);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -761,9 +403,7 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
                                 ),
                                 if (currentBalance > 0)
                                   GestureDetector(
-                                    onTap: () {
-                                      _selectQuickNominal(currentBalance.toInt());
-                                    },
+                                    onTap: () => _selectQuickNominal(currentBalance.toInt()),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                       decoration: BoxDecoration(
@@ -966,6 +606,7 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
                           ),
                           const SizedBox(height: 8),
+                          
                           TextField(
                             controller: _amountController,
                             keyboardType: TextInputType.number,
@@ -986,6 +627,12 @@ class _TarikSaldoMitraScreenState extends State<TarikSaldoMitraScreen> {
                                 borderRadius: BorderRadius.circular(10),
                                 borderSide: BorderSide(color: Colors.grey.shade300),
                               ),
+                              suffixIcon: _amountController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.cancel, color: Colors.grey, size: 20),
+                                      onPressed: _resetAmount,
+                                    )
+                                  : null,
                             ),
                           ),
 

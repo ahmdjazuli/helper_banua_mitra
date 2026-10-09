@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ChangelogMitraDialog {
-  static const String _currentAppVersion = '1.0.1'; 
+  static const String _currentAppVersion = '1.0.2'; 
   
   static final List<String> _changelogList = [
-    'Style UI input disamakan dengan Helper Banua',
-    'Tampilan Awal Helper Banua Mitra diperbaiki',
-    'Token FCM untuk notifikasi',
-    'Setup Layanan di Halaman Utama Mitra',
-    'Akun > Pin Transaksi + Hapus Akun',
-    'Saldo Pendapatan > Tarik, Riwayat Transaksi, dan Pin Transaksi',
+    'Tarik > Tombol Reset Nominal',
+    'Penawaran Pekerjaan > Tampilan nama & foto profil pelanggan lebih akurat',
+    'Ajukan Penawaran > Penyesuaian tampilan & format angka, hitung mundur, foto ukuran penuh, pemisahan input Estimasi Selesai (angka + satuan), catatan',
+    'Ajukan Penawaran > Edit/Lihat Penawaran Terkirim serta opsi Tarik/Batalkan Penawaran',
+    'Orderan Terdekat',
+    'Akun, Daftar, dan Buat Order > Alamat Utama (Google Maps) + Catatan (Opsional)',
   ];
 
   static Future<void> checkAndShow(BuildContext context) async {

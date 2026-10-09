@@ -5,13 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
-
 import '../auth/login.dart';
 import '../../widgets/background.dart';
 import '../../widgets/custom_input_field.dart';
-import '../../widgets/map_picker.dart';
 import '../../services/fcm_service.dart';
 import 'setup_layanan.dart';
 
@@ -32,14 +28,12 @@ class _AkunScreenState extends State<AkunScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _mapsController = TextEditingController();
-  final TextEditingController _catatanAlamatController = TextEditingController();
-
+  
+  // Controller Password Lama & Baru
   final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
 
   String? _photoUrl;
-  double? _savedLatitude;
-  double? _savedLongitude;
   bool _isLoading = false;
   bool _obscureOldPassword = true;
   bool _obscureNewPassword = true;
@@ -56,7 +50,6 @@ class _AkunScreenState extends State<AkunScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _mapsController.dispose();
-    _catatanAlamatController.dispose();
     _oldPasswordController.dispose();
     _newPasswordController.dispose();
     super.dispose();
@@ -68,7 +61,7 @@ class _AkunScreenState extends State<AkunScreen> {
     return user.providerData.any((info) => info.providerId == 'google.com');
   }
 
-  // 1. Memuat Data Pengguna & Mitra dari Firestore
+  // 1. Memuat Data Pengguna
   Future<void> _loadUserData() async {
     User? currentUser = _auth.currentUser;
     if (currentUser != null) {
@@ -82,14 +75,10 @@ class _AkunScreenState extends State<AkunScreen> {
 
         if (userDoc.exists && userDoc.data() != null) {
           Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
-          if (!mounted) return;
           setState(() {
             _namaController.text = data['nama'] ?? _namaController.text;
             _phoneController.text = data['phone'] ?? '';
             _mapsController.text = data['alamat'] ?? '';
-            _catatanAlamatController.text = data['catatanAlamat'] ?? '';
-            _savedLatitude = (data['latitude'] as num?)?.toDouble();
-            _savedLongitude = (data['longitude'] as num?)?.toDouble();
             if (data['photoUrl'] != null &&
                 data['photoUrl'].toString().isNotEmpty) {
               _photoUrl = data['photoUrl'];
@@ -102,192 +91,7 @@ class _AkunScreenState extends State<AkunScreen> {
     }
   }
 
-  // 2. Mendapatkan Lokasi GPS Saat Ini
-  Future<void> _getCurrentLocation() async {
-    setState(() => _isLoading = true);
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('GPS tidak aktif. Mohon aktifkan GPS Anda.')),
-          );
-        }
-        return;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Izin lokasi ditolak.')),
-            );
-          }
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Izin lokasi ditolak secara permanen di pengaturan HP.')),
-          );
-        }
-        return;
-      }
-
-      Position position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-
-      List<Placemark> placemarks = await Geocoding()
-          .placemarkFromCoordinates(position.latitude, position.longitude);
-
-      if (placemarks.isNotEmpty) {
-        Placemark place = placemarks.first;
-        String fullAddress = [
-          place.street,
-          place.subLocality,
-          place.locality,
-          place.subAdministrativeArea,
-          place.administrativeArea
-        ].where((element) => element != null && element.isNotEmpty).join(', ');
-
-        setState(() {
-          _mapsController.text = fullAddress.isNotEmpty
-              ? fullAddress
-              : "Lat: ${position.latitude}, Long: ${position.longitude}";
-          _savedLatitude = position.latitude;
-          _savedLongitude = position.longitude;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal mengambil lokasi: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // 3. Modal Bottom Sheet Pilihan Lokasi
-  void _showLocationPickerBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Pilih Alamat Pangkalan / Utama',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFCB05).withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.my_location, color: Colors.black),
-                  ),
-                  title: const Text(
-                    'Gunakan Lokasi Saat Ini',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  subtitle: const Text(
-                    'Deteksi posisi presisi kamu via GPS',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    _getCurrentLocation();
-                  },
-                ),
-
-                const Divider(),
-
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.map_outlined, color: Colors.red),
-                  ),
-                  title: const Text(
-                    'Pilih Titik di Peta / Cari Lokasi',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  subtitle: const Text(
-                    'Cari area, pangkalan, atau geser pin lokasi tepat',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    _openMapPickerScreen();
-                  },
-                ),
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // 4. Membuka Halaman Peta Interaktif MapPickerScreen
-  void _openMapPickerScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => MapPickerScreen(
-          initialAddress: _mapsController.text,
-          initialLatitude: _savedLatitude,
-          initialLongitude: _savedLongitude,
-        ),
-      ),
-    ).then((result) {
-      if (result != null && result is Map<String, dynamic>) {
-        setState(() {
-          _mapsController.text = result['address'] ?? '';
-          _savedLatitude = result['latitude'];
-          _savedLongitude = result['longitude'];
-        });
-      }
-    });
-  }
-
-  // 5. Simpan Perubahan Profil & Alamat Koordinat
+  // 2. Simpan Perubahan Data Profil & Ubah Password Aman
   Future<void> _saveProfileChanges() async {
     User? user = _auth.currentUser;
     if (user == null) return;
@@ -295,19 +99,23 @@ class _AkunScreenState extends State<AkunScreen> {
     String oldPass = _oldPasswordController.text.trim();
     String newPass = _newPasswordController.text.trim();
 
-    if (!_isGoogleUser() && newPass.isNotEmpty && oldPass.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Colors.red,
-          content: Text('Masukkan password lama Anda untuk mengganti password baru!'),
-        ),
-      );
-      return;
+    // Validasi jika user mencoba mengisi password baru tanpa password lama
+    if (!_isGoogleUser() && newPass.isNotEmpty) {
+      if (oldPass.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.red,
+            content: Text('Masukkan password lama Anda untuk mengganti password baru!'),
+          ),
+        );
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
 
     try {
+      // Re-autentikasi & ganti password jika diketikkan
       if (!_isGoogleUser() && newPass.isNotEmpty && oldPass.isNotEmpty) {
         AuthCredential credential = EmailAuthProvider.credential(
           email: user.email!,
@@ -321,18 +129,12 @@ class _AkunScreenState extends State<AkunScreen> {
         await user.updateDisplayName(_namaController.text.trim());
       }
 
-      Map<String, dynamic> updateData = {
+      await _firestore.collection('users').doc(user.uid).set({
         'nama': _namaController.text.trim(),
         'phone': _phoneController.text.trim(),
         'alamat': _mapsController.text.trim(),
-        'catatanAlamat': _catatanAlamatController.text.trim(),
-        'latitude': _savedLatitude,
-        'longitude': _savedLongitude,
         'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      await _firestore.collection('users').doc(user.uid).set(updateData, SetOptions(merge: true));
-      await _firestore.collection('mitra').doc(user.uid).set(updateData, SetOptions(merge: true));
+      }, SetOptions(merge: true));
 
       _oldPasswordController.clear();
       _newPasswordController.clear();
@@ -341,25 +143,34 @@ class _AkunScreenState extends State<AkunScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             backgroundColor: Colors.green,
-            content: Text('Profil & Alamat Mitra berhasil diperbarui!'),
+            content: Text('Profil berhasil diperbarui!'),
           ),
         );
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        String msg = e.code == 'wrong-password' ? 'Password lama salah!' : 'Gagal memperbarui profil!';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.red, content: Text(msg)));
+        String msg = 'Gagal memperbarui profil!';
+        if (e.code == 'wrong-password') {
+          msg = 'Password lama salah! Mohon periksa kembali.';
+        } else if (e.code == 'weak-password') {
+          msg = 'Password baru terlalu lemah (minimal 6 karakter).';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.red, content: Text(msg)),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.red, content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.red, content: Text('Error: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // 6. Fitur Hapus Akun Mitra
+  // 3. Fitur Hapus Akun Permanen dengan Input PIN Transaksi
   Future<void> _confirmAndDeleteAccount() async {
     final List<TextEditingController> pinControllers = List.generate(6, (_) => TextEditingController());
     final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
@@ -493,7 +304,6 @@ class _AkunScreenState extends State<AkunScreen> {
       }
 
       await FCMService.removeFCMTokenOnLogout();
-      await _firestore.collection('mitra').doc(user.uid).delete();
       await _firestore.collection('users').doc(user.uid).delete();
       await user.delete();
 
@@ -501,13 +311,26 @@ class _AkunScreenState extends State<AkunScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             backgroundColor: Colors.green,
-            content: Text('Akun Mitra Anda berhasil dihapus secara permanen.'),
+            content: Text('Akun Anda berhasil dihapus secara permanen.'),
           ),
         );
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login' && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.red,
+            content: Text('Demi keamanan, silakan Logout & Login ulang terlebih dahulu untuk menghapus akun.'),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.red, content: Text('Gagal menghapus akun: ${e.message}')),
         );
       }
     } catch (e) {
@@ -521,7 +344,7 @@ class _AkunScreenState extends State<AkunScreen> {
     }
   }
 
-  // 7. Unggah Foto Profil Mitra
+  // 4. Unggah Foto Profil
   Future<void> _pickAndUploadImage(ImageSource source) async {
     User? user = _auth.currentUser;
     if (user == null) return;
@@ -541,17 +364,13 @@ class _AkunScreenState extends State<AkunScreen> {
       File file = File(pickedFile.path);
 
       Reference storageRef = _storage.ref().child('profile_pictures/${user.uid}.jpg');
-      TaskSnapshot snapshot = await storageRef.putFile(file);
+      UploadTask uploadTask = storageRef.putFile(file);
+      TaskSnapshot snapshot = await uploadTask;
 
       String downloadUrl = await snapshot.ref.getDownloadURL();
 
       await user.updatePhotoURL(downloadUrl);
       await _firestore.collection('users').doc(user.uid).set({
-        'photoUrl': downloadUrl,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      await _firestore.collection('mitra').doc(user.uid).set({
         'photoUrl': downloadUrl,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -576,7 +395,7 @@ class _AkunScreenState extends State<AkunScreen> {
     }
   }
 
-  // 8. Atur PIN Transaksi Mitra
+  // 5. Atur PIN Transaksi
   void _showAturPinDialog() {
     final List<TextEditingController> pinControllers = List.generate(6, (_) => TextEditingController());
     final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
@@ -597,7 +416,7 @@ class _AkunScreenState extends State<AkunScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Buat 6 digit PIN untuk mengamankan transaksi penarikan saldo dan keamanan akun Anda.',
+                'Buat 6 digit PIN untuk mengamankan transaksi dan keamanan akun Anda.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const SizedBox(height: 16),
@@ -748,7 +567,6 @@ class _AkunScreenState extends State<AkunScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // HEADER AVATAR PROFIL
               Center(
@@ -923,60 +741,23 @@ class _AkunScreenState extends State<AkunScreen> {
                 labelColor: Colors.black87,
               ),
 
-              // INPUT ALAMAT UTAMA / PANGKALAN DENGAN MAP PICKER & GPS
-              const Padding(
-                padding: EdgeInsets.only(bottom: 6.0),
-                child: Text(
-                  'Alamat Pangkalan / Utama',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
-                ),
-              ),
-              GestureDetector(
-                onTap: _showLocationPickerBottomSheet,
-                child: AbsorbPointer(
-                  child: TextField(
-                    controller: _mapsController,
-                    maxLines: 2,
-                    minLines: 1,
-                    style: const TextStyle(fontSize: 14, color: Colors.black),
-                    decoration: InputDecoration(
-                      hintText: 'Pilih lokasi pangkalan via GPS atau Peta Interaktif...',
-                      prefixIcon: const Icon(Icons.location_on_outlined, color: Colors.red),
-                      suffixIcon: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black54),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // FIELD CATATAN / DETAIL ALAMAT (OPSIONAL)
               CustomInputField(
-                icon: Icons.note_alt_outlined,
-                label: 'Catatan / Detail Alamat Pangkalan (Opsional)',
-                hintText: 'Contoh: Bengkel Utama, Samping Masjid, Pagar Kuning...',
-                controller: _catatanAlamatController,
+                icon: Icons.location_on_outlined,
+                label: 'Alamat Utama',
+                hintText: 'Masukkan alamat lengkap',
+                controller: _mapsController,
                 labelColor: Colors.black87,
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
               SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: OutlinedButton.icon(
-                  onPressed: _showAturPinDialog,
+                  onPressed: () {
+                    _showAturPinDialog();
+                  },
                   icon: const Icon(Icons.shield_outlined, color: Colors.black, size: 20),
                   label: const Text(
                     'ATUR / UBAH PIN TRANSAKSI',

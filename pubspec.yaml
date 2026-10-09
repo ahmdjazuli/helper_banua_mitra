@@ -15,6 +15,10 @@ dependencies:
   latlong2: ^0.9.1
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.2.0
+  geolocator: ^14.1.1
+  google_maps_flutter: ^2.10.0
+  geocoding: ^5.0.0
+  google_places_flutter: ^2.1.1
 
   # LAUNCHER / INTENT
   android_intent_plus: ^5.0.0
@@ -26,13 +30,15 @@ dependencies:
   cloud_firestore: ^5.0.0
   firebase_storage: ^12.4.10
   google_sign_in: ^6.2.1
-  geolocator: ^13.0.1
 
   # Token FCM
   firebase_messaging: ^15.0.0
 
   webview_flutter: ^4.10.0
   http: ^1.2.0
+
+  # Environment Variables
+  flutter_dotenv: ^5.1.0
 
 dev_dependencies:
   flutter_test:
